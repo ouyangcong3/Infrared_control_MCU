@@ -1,0 +1,190 @@
+/*******************************************************************
+ wd6122红外遥控 12M晶振 89s52s单片机 控制多个器件 onion修改 20130515 12：12
+ *******************************************************************/
+#include<reg52.h>
+#define uchar unsigned char 
+#define uint unsigned int 
+
+unsigned char code smg_du[]={0xc0,0xf9,0xa4,0xb0,0x99,0x92,0x82,0xf8,0x80,0x90,0x88,0x83,0xc6,0xa1,0x86,0x8e};
+unsigned char code smg_we[]={0xfe,0xfd,0xfb,0xf7,0xef,0xdf,0xbf,0x7f};
+sbit led0 = P1^0;
+sbit led1 = P1^1;
+sbit led2 = P1^2;
+uchar irtime;
+uchar startflag;
+uchar irdata[33];
+uchar bitnum;
+uchar irreceok;
+uchar ircode[4];
+uchar irprosok;
+uchar disp[8];
+//************************************************
+//延时函数，在12MHz的晶振频率下
+//大约50us的延时
+//************************************************
+void delay_50us(uint t)
+{
+ uchar j;
+ for(;t>0;t--)
+        for(j=19;j>0;j--);
+}
+
+//************************************************
+//延时函数，在12MHz的晶振频率下
+//大约50ms的延时
+//************************************************
+void delay_50ms(uint t)
+{
+ uint j;
+ for(;t>0;t--)
+ for(j=6245;j>0;j--);
+}
+
+void timer0init(void)
+{
+ TMOD=0x02;
+ TH0=0x00;
+ TL0=0x00;
+ ET0=1;
+ EA=1;
+ TR0=1;
+
+}
+
+void int0init(void)
+{
+ IT0=1;
+ EX0=1;
+ EA=1;
+}
+
+void irwork(void)
+{
+ disp[0]=ircode[0]/16;
+ disp[1]=ircode[0]%16;
+ disp[2]=ircode[1]/16;
+ disp[3]=ircode[1]%16; 
+ disp[4]=ircode[2]/16;
+ disp[5]=ircode[2]%16; 
+ disp[6]=ircode[3]/16;
+ disp[7]=ircode[3]%16; 
+   
+}
+
+void display(void)
+{
+ uchar i;
+ for(i=0;i<8;i++)
+ {
+  P0=smg_du[disp[i]];
+  P2=smg_we[i];
+  delay_50us(20);
+ }
+}
+
+void irpros(void)  //0x1c 
+{
+ uchar k,i,j;
+ uchar value;
+ k=1;
+ for(j=0;j<4;j++)
+ {
+  for(i=0;i<8;i++)
+  {
+   value=value>>1;   //7
+   if(irdata[k]>6)   //8
+   {
+    value=value | 0x80; 
+   }
+   k++;
+  }
+  ircode[j]=value;
+ }
+ irprosok=1;
+}
+
+void main()
+{
+ timer0init();
+ int0init();
+ while(1)
+ {
+  if(irreceok)
+  {
+   irpros();
+   irreceok=0; 
+  }
+  if(irprosok)
+  {
+   irwork();
+   irprosok=0;
+  }
+if(ircode[2]==0x02)
+  {
+   led0=1;
+  
+  }
+if(ircode[2]==0x06)
+  {
+    led0=0;
+   
+  }
+  if(ircode[2]==0x10)
+  {
+   led1=1;
+  
+  }
+if(ircode[2]==0x11)
+  {
+    led1=0;
+   
+  }
+if(ircode[2]==0x14)
+  {
+   led2=1;
+  
+  }
+if(ircode[2]==0x15)
+  {
+    led2=0;
+   
+  }
+  display();
+   
+ } 
+  
+}
+
+void timer0 () interrupt 1
+{
+ irtime++; //255
+}
+
+void int0 () interrupt 0
+{
+ if(startflag)
+ {
+  if(irtime>52) //检测引导码
+  {
+    bitnum=0;
+  }
+  irdata[bitnum]=irtime;
+  irtime=0;
+  bitnum++;
+  if(bitnum==33)
+  {
+   bitnum=0;
+   irreceok=1;
+
+  }
+
+ }
+ else
+ {
+  startflag=1;
+  irtime=0;
+ }
+}
+
+ 
+   
